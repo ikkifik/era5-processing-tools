@@ -1,0 +1,4 @@
+cdsapi
+geopandas
+xarray
+dotenv

@@ -1,0 +1,22 @@
+[
+    {
+        "name": "portugal",
+        "shapefile_path": "shapefile_boundaries/portugal_temp_raster_full_boundaries.geojson"
+    },
+    {
+        "name": "greece",
+        "shapefile_path": "shapefile_boundaries/greece_temp_raster_full_boundaries.geojson"
+    },
+    {
+        "name": "slovakia",
+        "shapefile_path": "shapefile_boundaries/slovakia_temp_raster_full_boundaries.geojson"
+    },
+    {
+        "name": "tepilora",
+        "shapefile_path": "shapefile_boundaries/tepilora_temp_raster_full_boundaries.geojson"
+    },
+    {
+        "name": "indonesia",
+        "shapefile_path": "shapefile_boundaries/indonesia_temp_raster_full_boundaries.geojson"
+    }
+]

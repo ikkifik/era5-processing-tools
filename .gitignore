@@ -1,8 +1,11 @@
 __pycache__/
 _archives*/
 era5_cache/
-temp_results/
+temp_*/
+dataset/
+log/
 
 .env*
+*test*
 *.grib
 *.idx

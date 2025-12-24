@@ -55,7 +55,8 @@ class ERA5GribExtractor:
         result.update({"metadata": {
                 "DATE_ACQUIRED": date_acquired,
                 "SPACECRAFT_ID": "ERA5",
-                "WKT_COORDS": self.__extract_geom(data_path)
+                "WKT_COORDS": self.__extract_geom(data_path),
+                "FACTORS": os.path.basename(data_path).split("_")[0]
             }})
         result.update({"stat_value": self.__stat_value(data_path)})
 

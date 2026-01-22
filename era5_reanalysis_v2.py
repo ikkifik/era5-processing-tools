@@ -27,9 +27,11 @@ class Reanalysis:
             lfs = [f for f in os.listdir("era5_cache") if ".json" in f]
             for lf in lfs:
                 selected = json.load(open(os.path.join("era5_cache", lf)))
-                if 'date' not in selected:
+                if 'start_date' not in selected:
                     continue
-                if selected['area_bounds'] == area_bounds and selected['date'] == kwargs['date']:
+                
+                check_date = (selected['start_date'] == kwargs['start_date']) and (selected['end_date'] == kwargs['end_date'])
+                if selected['area_bounds'] == area_bounds and check_date:
                     cached_data = selected
                 # elif selected['area_bounds'] == area_bounds:
                 #     cached_data = selected
@@ -44,8 +46,13 @@ class Reanalysis:
         # later the data will changed into raster images.
         
         nowdate = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
-        temp_filename = os.path.join(self.temp_dir, f"{nowdate}_{kwargs['year']}{kwargs['month']}.grib")
-        temp_metafilename = os.path.join(self.temp_dir, f"{nowdate}_{kwargs['year']}{kwargs['month']}_meta.json")
+        date_filename = f"{min(kwargs['year'])}{min(kwargs['month'])}_{max(kwargs['year'])}{max(kwargs['month'])}"
+        temp_filename = os.path.join(self.temp_dir, f"{nowdate}_{date_filename}.grib")
+        temp_metafilename = os.path.join(self.temp_dir, f"{nowdate}_{date_filename}_meta.json")
+
+        years = [str(y) for y in kwargs['year']]
+        months = [str(m) for m in kwargs['month']]
+        days = [str(d) for d in kwargs['day']]
 
         dataset = "reanalysis-era5-single-levels"
         request = {
@@ -54,11 +61,11 @@ class Reanalysis:
                 "2m_temperature",
                 "total_precipitation"
             ],
-            "year": kwargs['year'],
-            "month": kwargs['month'],
-            "day": kwargs['day'],
+            "year": years,
+            "month": months,
+            "day": days,
             "time": ["13:00"],
-            "data_format": "netcdf",
+            "data_format": "grib",
             "download_format": "unarchived",
             'area': [ area_bounds["north"], area_bounds["west"], 
                      area_bounds["south"], area_bounds["east"] ],
@@ -69,8 +76,10 @@ class Reanalysis:
         
         doc = { 
             "area_bounds": area_bounds, 
-            "ncfile": temp_filename, 
-            "date": f"{kwargs['year']}-{kwargs['month']}-{kwargs['day']}" 
+            "data_path": temp_filename, 
+            # "date": f"{kwargs['year']}-{kwargs['month']}-{kwargs['day']}"
+            "start_date": f"{min(kwargs['year'])}{min(kwargs['month'])}",
+            "end_date": f"{max(kwargs['year'])}{max(kwargs['month'])}",
         }
         with open(temp_metafilename, "w") as f:
             json.dump(doc, f)
@@ -111,14 +120,12 @@ class Reanalysis:
 
     def process(self, shape_files, **kwargs):
         
-        year = kwargs["year"] if kwargs.get("year") else 2020
+        year = kwargs["year"] if kwargs.get("year") else 2020 #TODO: Need a replacement
         if type(year) == list:
             for y in year:
                 month, day = self._iterate_date(y)
         else:
             month, day = self._iterate_date(year)
-        # month = kwargs["month"] if kwargs.get("month") else 6
-        # day = kwargs["day"] if kwargs.get("day") else 15
         
         try:
             if kwargs.get("metadata"):
@@ -133,10 +140,10 @@ class Reanalysis:
                     # this block of code means that it cannot retrieve data more than the current year
                     # and cannot retrieve data less than 20 years ago
                     return False
-                year, month, day = [str(year), str(month), str(day)]
+                year, month, day = [year, month, day]
         except Exception as e:
             print("\n[W] Failed to get date, use default date instead.")
-            year, month, day = [str(year), str(month), str(day)]
+            year, month, day = [year, month, day]
         
         gdf = gpd.read_file(shape_files)
 
@@ -148,61 +155,74 @@ class Reanalysis:
         area_bounds = {"north": north, "west": west, "south": south, "east": east}
 
         # Add caching technique
+        start_date = f"{min(year)}{min(month)}"
+        end_date = f"{max(year)}{max(month)}"
+
         try:
-            date_check=f"{year}-{month}-{day}"
-            cached_file = self._search_cache(area_bounds=area_bounds, date=date_check)
+            # date_check=f"{year}-{month}-{day}"
+            cached_file = self._search_cache(area_bounds=area_bounds, start_date=start_date, end_date=end_date)
             if cached_file:
-                print(f"\n[i] Using cached ERA5 data: {date_check}")
-                gribfile = cached_file['gribfile']
+                print(f"\n[i] Using cached ERA5 data: {start_date}_{end_date}")
+                gribfile = cached_file['data_path']
             else:
                 print("\n[REQ] Online ECMWF Request")
                 gribfile = self._retrieve_data(area_bounds=area_bounds, year=year, month=month, day=day)
         except:
-            print("\n[MSG] Getting cached .nc file has failed")
+            print(f"\n[MSG] Getting cached .grib file has failed: {start_date}_{end_date}")
             print("[REQ] Online ECMWF Request instead\n")
             gribfile = self._retrieve_data(area_bounds=area_bounds, year=year, month=month, day=day)
             pass
         # Add caching technique (end)
 
-        df = self._retrieve_var(dataset=gribfile)
+        return gribfile
+    
+        # df = self._retrieve_var(dataset=gribfile)
 
-        print(df)
-        gdf = gpd.GeoDataFrame(df[['valid_time', 't2m', 'tp']], geometry=gpd.points_from_xy(df.longitude,df.latitude))
-        # gdf = gdf.to_crs({'init': 'epsg:4326'})
-        gdf = gdf.set_crs('epsg:4326')
+        # print(df)
+        # gdf = gpd.GeoDataFrame(df[['valid_time', 't2m', 'tp']], geometry=gpd.points_from_xy(df.longitude,df.latitude))
+        # # gdf = gdf.to_crs({'init': 'epsg:4326'})
+        # gdf = gdf.set_crs('epsg:4326')
 
-        # temperature(K) to celcius
-        gdf['t2m'] = gdf['t2m'].apply(lambda c: c-273.15)
+        # # temperature(K) to celcius
+        # gdf['t2m'] = gdf['t2m'].apply(lambda c: c-273.15)
 
-        # Turn into raster data
-        gdf["x"] = gdf["geometry"].x
-        gdf["y"] = gdf["geometry"].y
+        # # Turn into raster data
+        # gdf["x"] = gdf["geometry"].x
+        # gdf["y"] = gdf["geometry"].y
 
-        t2m = (gdf.set_index(["y", "x"]).t2m.to_xarray()).rio.set_crs(4326)
-        tp = (gdf.set_index(["y", "x"]).tp.to_xarray()).rio.set_crs(4326)
+        # t2m = (gdf.set_index(["y", "x"]).t2m.to_xarray()).rio.set_crs(4326)
+        # tp = (gdf.set_index(["y", "x"]).tp.to_xarray()).rio.set_crs(4326)
 
-        dir_path = os.path.join("temp_results", "raster")
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+        # dir_path = os.path.join("temp_results", "raster")
+        # if not os.path.exists(dir_path):
+        #     os.makedirs(dir_path)
         
-        t2m_path = os.path.join(dir_path, f"t2m_{datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')}.TIF")
-        t2m.rio.to_raster(t2m_path)
+        # t2m_path = os.path.join(dir_path, f"t2m_{datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')}.TIF")
+        # t2m.rio.to_raster(t2m_path)
 
-        tp_path = os.path.join(dir_path, f"tp_{datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')}.TIF")
-        tp.rio.to_raster(tp_path)
+        # tp_path = os.path.join(dir_path, f"tp_{datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')}.TIF")
+        # tp.rio.to_raster(tp_path)
 
-        doc = {
-            "t2m_path": str(t2m_path),
-            "tp_path": str(tp_path)
-        }
+        # doc = {
+        #     "t2m_path": str(t2m_path),
+        #     "tp_path": str(tp_path)
+        # }
 
         # [end]Turn into raster data
 
-        return doc
+        # return doc
 
 
 if __name__ == "__main__":
-    area_study = ""
+
+    import argparse
+    parser = argparse.ArgumentParser(description="ERA5 Reanalysis data retrieval (t2m & tp)")
+    parser.add_argument('-rp', '--raster-path', dest="raster_path", type=str, required=True)
+    parser.add_argument('-sy', '--start-year', dest="start_year", type=int, default=2016)
+    parser.add_argument('-ey', '--end-year', dest="end_year", type=int, default=2022)
+    args = parser.parse_args()
+
+    area_study = args.raster_path
 
     # To get 4-axis boundaries from raster image, please refer to raster_boundaries.py
     # it produces a geojson files that can be inputted to below process
@@ -210,5 +230,5 @@ if __name__ == "__main__":
     reanalysis = Reanalysis()
     res = reanalysis.process(
         shape_files=area_study, 
-        year=[y for y in range(2021, 2025+1)], 
+        year=[y for y in range(int(args.start_year), int(args.end_year)+1)], 
     )

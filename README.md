@@ -21,3 +21,11 @@ pip install -r requirements.txt
 ```
 
 5. Run the script (*Explanation coming soon..*)
+
+```
+python -u era5_runner.py \
+-rp "/Users/yylab/ikkifik/research/sentinel-extraction-tools/results/2025-ofunato/S2A_MSIL1C_20250103T012041_N0511_R031_T54SWJ_20250103T023155.SAFE/GRANULE/L1C_T54SWJ_A049792_20250103T012040/IMG_DATA/T54SWJ_20250103T012041_B01.jp2" \
+-sy 2016 \
+-ey 2025 \
+2>&1 | tee "log/output_era5_runner_$(date +%Y%m%d_%H%M%S)".log
+```

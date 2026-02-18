@@ -2,3 +2,7 @@ cdsapi
 geopandas
 xarray
 dotenv
+rasterio
+rioxarray
+matplotlib
+telebot

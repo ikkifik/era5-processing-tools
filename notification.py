@@ -8,7 +8,7 @@ import time
 from dotenv import load_dotenv
 load_dotenv()
 
-class TelegramMonitoring:
+class Notification:
     def __init__(self):
         # Create the bot instance
         self.bot = telebot.TeleBot(token=os.getenv('TELEGRAM_TOKEN'))

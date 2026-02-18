@@ -2,7 +2,7 @@ from era5_reanalysis_v3 import Reanalysis
 from raster_boundaries import RasterBoundaries
 from era5_grib_extractor import ERA5GribExtractor
 
-from .notification.TelegramMonitoring import duration_formatter, send_telegram_message
+from notification.Notification import duration_formatter, send_telegram_message
 
 if __name__ == "__main__":
 

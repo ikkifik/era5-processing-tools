@@ -90,8 +90,8 @@ class Reanalysis:
         doc = { 
             "area_bounds": area_bounds, 
             "data_path": temp_filename, 
-            "start_date": f"{year}-{min(months)}-{min(days)}__{min(times)}",
-            "end_date": f"{year}-{max(months)}-{max(days)}__{max(times)}",
+            "start_date": f"{years[0]}-{min(months)}-{min(days)}__{min(times)}",
+            "end_date": f"{years[0]}-{max(months)}-{max(days)}__{max(times)}",
         }
         with open(temp_metafilename, "w") as f:
             json.dump(doc, f)

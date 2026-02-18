@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # To get 4-axis boundaries from raster image, please refer to raster_boundaries.py
     # it produces a geojson files that can be inputted to below process
 
-    year = [year for year in range(args.start_year, args.end_year+1)]
+    years = [year for year in range(args.start_year, args.end_year+1)]
     for year in years:
         datenow = datetime.now()
         bot.send_telegram_message(f"ERA5 Reanalysis Start downloading: {str(datetime.strftime(datenow, "%Y-%m-%d %H:%M:%S"))}")

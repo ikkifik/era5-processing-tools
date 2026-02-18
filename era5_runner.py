@@ -2,9 +2,11 @@ from era5_reanalysis_v3 import Reanalysis
 from raster_boundaries import RasterBoundaries
 from era5_grib_extractor import ERA5GribExtractor
 
-from notification.Notification import duration_formatter, send_telegram_message
+from notification import Notification
 
 if __name__ == "__main__":
+
+    bot = Notification()
 
     import argparse, time
     parser = argparse.ArgumentParser(description="ERA5 Reanalysis data retrieval")
@@ -25,7 +27,7 @@ if __name__ == "__main__":
     year = [year for year in range(args.start_year, args.end_year+1)]
     for year in years:
         datenow = datetime.now()
-        send_telegram_message(f"ERA5 Reanalysis Start downloading: {str(datetime.strftime(datenow, "%Y-%m-%d %H:%M:%S"))}")
+        bot.send_telegram_message(f"ERA5 Reanalysis Start downloading: {str(datetime.strftime(datenow, "%Y-%m-%d %H:%M:%S"))}")
 
         reanalysis = Reanalysis()
         gribfile = reanalysis.process(
@@ -35,7 +37,7 @@ if __name__ == "__main__":
         )
         datelater = datetime.now()
         diff = datelater - datenow
-        send_telegram_message(f"""
+        bot.send_telegram_message(f"""
         ERA5 Reanalysis 
         ========================================
         Data downloaded successfully:
@@ -44,7 +46,7 @@ if __name__ == "__main__":
         Timestamp:
         - start: {str(datetime.strftime(datenow, "%Y-%m-%d %H:%M:%S"))}
         - end: {str(datetime.strftime(datelater, "%Y-%m-%d %H:%M:%S"))}
-        - total duration: {str(duration_formatter(int(diff.total_seconds())))}
+        - total duration: {str(bot.duration_formatter(int(diff.total_seconds())))}
         """)
 
         time.sleep(3600*2)

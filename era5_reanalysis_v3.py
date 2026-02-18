@@ -14,9 +14,6 @@ load_dotenv()
 class Reanalysis:
 
     def __init__(self):
-        # self.uid = os.getenv("ERA5_UID")
-        # self.api_key = os.getenv("ERA5_API_KEY")
-        
         self.temp_dir = "era5_cache"
         if not os.path.exists(self.temp_dir):
             os.makedirs(self.temp_dir)
@@ -46,22 +43,11 @@ class Reanalysis:
         # later the data will changed into raster images.
         
         nowdate = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
-        # date_filename = f"{min(kwargs['year'])}{min(kwargs['month'])}_{max(kwargs['year'])}{max(kwargs['month'])}"
-        # temp_filename = os.path.join(self.temp_dir, f"{nowdate}_{date_filename}.grib")
-        # temp_metafilename = os.path.join(self.temp_dir, f"{nowdate}_{date_filename}_meta.json")
 
-        # years = [str(y) for y in kwargs['year']]
-        # months = [str(m) for m in kwargs['month']]
-        # days = [str(d) for d in kwargs['day']]
-
-        print("""
-            - year: 2015
-            - months: [1...12]
-            - day: [1...31]
-            - variables: ["2m_temperature","total_precipitation","2m_dewpoint_temperature"
-        """)
-
-        years = ["2015"]
+        years = [str(kwargs['year'])]
+        months = [f"{number:02d}" for number in range(1, 12+1)]
+        days = [f"{number:02d}" for number in range(1, 31+1)]
+        times = [f"{number:02d}:00" for number in range(24)]
         variable = [
                 "2m_temperature",
                 "total_precipitation",
@@ -76,15 +62,22 @@ class Reanalysis:
         temp_filename = os.path.join(self.temp_dir, f"{nowdate}_{years[0]}_{"-".join([var for var in variable])}.grib")
         temp_metafilename = os.path.join(self.temp_dir, f"{nowdate}_{years[0]}_{"-".join([var for var in variable])}_meta.json")
 
+        print("=========================================================")
+        print("Downloading {year}-{min_month}-{min_day} to {year}-{max_month}-{max_day} ".format(
+            year=years[0], 
+            min_month=min(months), max_month=max(months),
+            min_day=min(days), max_day=max(days),
+        ))
+        print("Variables: {var}".format(var=variable))
 
         dataset = "reanalysis-era5-single-levels"
         request = {
             "product_type": ["reanalysis"],
             "variable": variable,
-            "year": years, #years,
-            "month": [f"{number:02d}" for number in range(1, 12+1)], # months,
-            "day": [f"{number:02d}" for number in range(1, 31+1)], # days,
-            "time": [f"{number:02d}:00" for number in range(24)],
+            "year": years,
+            "month": months,
+            "day": days,
+            "time": times,
             "data_format": "grib",
             "download_format": "unarchived",
             'area': [ area_bounds["north"], area_bounds["west"], 
@@ -97,25 +90,13 @@ class Reanalysis:
         doc = { 
             "area_bounds": area_bounds, 
             "data_path": temp_filename, 
-            # "date": f"{kwargs['year']}-{kwargs['month']}-{kwargs['day']}"
-            "start_date": f"{min(kwargs['year'])}{min(kwargs['month'])}",
-            "end_date": f"{max(kwargs['year'])}{max(kwargs['month'])}",
+            "start_date": f"{year}-{min(months)}-{min(days)}__{min(times)}",
+            "end_date": f"{year}-{max(months)}-{max(days)}__{max(times)}",
         }
         with open(temp_metafilename, "w") as f:
             json.dump(doc, f)
         
         return temp_filename
-
-    def _retrieve_var(self, dataset):
-        t2m_dataset = xr.open_dataset(dataset, engine="cfgrib")
-        t2m_df = t2m_dataset.to_dataframe().reset_index()
-        tp_dataset = xr.open_dataset(dataset, engine="cfgrib", 
-                                     backend_kwargs={'filter_by_keys': {'shortName': 'tp'}})
-        tp_df = tp_dataset.to_dataframe().reset_index()
-
-        merged = pd.merge(t2m_df, tp_df[['tp']], on=t2m_df.index, how='left')
-
-        return merged
 
     def _iterate_date(self, year):
 
@@ -141,29 +122,6 @@ class Reanalysis:
     def process(self, shape_files, **kwargs):
         
         year = kwargs["year"] if kwargs.get("year") else 2020 #TODO: Need a replacement
-        # if type(year) == list:
-        #     for y in year:
-        #         month, day = self._iterate_date(y)
-        # else:
-        #     month, day = self._iterate_date(year)
-        
-        # try:
-        #     if kwargs.get("metadata"):
-        #         print("Using metadata")
-        #         date_acquired = kwargs['metadata']['DATE_ACQUIRED']
-        #         # da = date.fromisoformat(date_acquired)
-        #         da = datetime.strptime(date_acquired, "%Y-%m-%d")
-        #         year, month, day = [da.year, da.month, da.day]
-        #     else:
-        #         # this block will run as a normal state when metadata couldn't be found
-        #         if int(year) > int(datetime.now().year) and int(year) < int(datetime.now().year)-20:
-        #             # this block of code means that it cannot retrieve data more than the current year
-        #             # and cannot retrieve data less than 20 years ago
-        #             return False
-        #         year, month, day = [year, month, day]
-        # except Exception as e:
-        #     print("\n[W] Failed to get date, use default date instead.")
-        #     year, month, day = [year, month, day]
         
         gdf = gpd.read_file(shape_files)
 
@@ -173,27 +131,9 @@ class Reanalysis:
         # Get minX, minY, maxX, maxY
         west, south, east, north = gdf.total_bounds
         area_bounds = {"north": north, "west": west, "south": south, "east": east}
-
-        # Add caching technique
-        start_date = f"{min(year)}{min(month)}"
-        end_date = f"{max(year)}{max(month)}"
-
-        try:
-            # date_check=f"{year}-{month}-{day}"
-            cached_file = self._search_cache(area_bounds=area_bounds, start_date=start_date, end_date=end_date)
-            if cached_file:
-                print(f"\n[i] Using cached ERA5 data: {start_date}_{end_date}")
-                gribfile = cached_file['data_path']
-            else:
-                print("\n[REQ] Online ECMWF Request")
-                gribfile = self._retrieve_data(area_bounds=area_bounds, year=year, month=month, day=day)
-        except:
-            print(f"\n[MSG] Getting cached .grib file has failed: {start_date}_{end_date}")
-            print("[REQ] Online ECMWF Request instead\n")
-            gribfile = self._retrieve_data(area_bounds=area_bounds, year=year, month=month, day=day)
-            pass
-        # Add caching technique (end)
-
+    
+        gribfile = self._retrieve_data(area_bounds=area_bounds, year=year)
+        
         return gribfile
 
 
@@ -202,17 +142,14 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="ERA5 Reanalysis data retrieval (t2m & tp)")
     parser.add_argument('-rp', '--raster-path', dest="raster_path", type=str, required=True)
-    parser.add_argument('-sy', '--start-year', dest="start_year", type=int, default=2016)
-    parser.add_argument('-ey', '--end-year', dest="end_year", type=int, default=2022)
+    parser.add_argument('-y', '--year', dest="year", type=int, default=2015)
     args = parser.parse_args()
-
-    area_study = args.raster_path
 
     # To get 4-axis boundaries from raster image, please refer to raster_boundaries.py
     # it produces a geojson files that can be inputted to below process
 
     reanalysis = Reanalysis()
     res = reanalysis.process(
-        shape_files=area_study, 
-        year=[y for y in range(int(args.start_year), int(args.end_year)+1)], 
+        shape_files=args.raster_path, 
+        year=args.year, 
     )
